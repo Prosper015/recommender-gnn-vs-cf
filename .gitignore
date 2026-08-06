@@ -1,0 +1,49 @@
+
+# Environnements Virtuels & Cache Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+
+# Données lourdes (Data Engineer)
+# Ne jamais envoyer les jeux de données volumineux sur Git
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Exclure les archives téléchargées
+*.zip
+*.tar.gz
+*.csv
+
+# Modèles Sauvegardés (ML Engineer)
+saved_models/*
+!saved_models/.gitkeep
+*.pt
+*.pth
+*.pkl
+*.bin
+*.onnx
+
+# Frontend & Dépendances Node.js
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/.npm
+
+# Fichiers Système, IDE et Variables d'Environnement
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+.env
