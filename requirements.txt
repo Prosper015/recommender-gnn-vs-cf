@@ -3,3 +3,11 @@ requests
 tqdm
 pyarrow
 mlflow
+
+# ML Engineer: baselines + LightGCN + evaluation
+torch==2.13.0
+scikit-surprise
+numpy
+matplotlib
+pytest
+tabulate
