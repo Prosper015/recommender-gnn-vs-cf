@@ -3,7 +3,7 @@ import axios from "axios";
 import { Film, User, Network, BarChart3, Users, RefreshCw, AlertCircle } from "lucide-react";
 import "./index.css";
 
-const API_URL = "http://127.0.0.1:8000";
+const API_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
 
 export default function App() {
   const [userId, setUserId] = useState(1);
