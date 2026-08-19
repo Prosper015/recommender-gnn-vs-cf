@@ -239,16 +239,3 @@ Le backend répond mais renvoie des tableaux vides.
 # Ou forcer un port spécifique
 npm run dev -- --port 3000
 ```
-
----
-
-
-## Améliorations futures
-
-- [ ] Ajouter un skeleton loader pendant le chargement
-- [ ] Afficher le temps de réponse par modèle
-- [ ] Ajouter un filtre par genre
-- [ ] Responsive mobile optimisé
-- [ ] Tests unitaires avec React Testing Library
-- [ ] Ajouter un état "dark mode"
-- [ ] Afficher l'historique des films vus par l'utilisateur
