@@ -105,6 +105,94 @@ L'interface de démonstration sera accessible sur `http://localhost:5173` (ou l'
 
 ---
 
+## Docker - Démarrage en une commande
+
+### Prérequis
+
+- **Docker** : 20.10+
+- **Docker Compose** : v2+
+
+### Architecture des conteneurs
+
+| Service | Image | Port exposé | Rôle |
+|---------|-------|-------------|------|
+| `api` | `python:3.10-slim` | 8000 | Backend FastAPI + modèles ML |
+| `app` | `node:18-alpine` | 3000 | Frontend React |
+
+Les deux services communiquent sur un réseau Docker interne `recommender-network`. Le frontend atteint le backend via le nom de service `api`.
+
+### Fichiers Docker
+
+```text
+recommender-gnn-vs-cf/
+├── Dockerfile.backend           # Image du backend Python/FastAPI
+├── docker-compose.yml           # Orchestration des 2 services
+└── frontend/
+    └── Dockerfile.frontend      # Image du frontend React
+```
+
+### Volumes pour le Hot-Reloading
+
+Le `docker-compose.yml` monte les dossiers de code source en volume pour que les modifications locales soient reflétées instantanément dans les conteneurs :
+
+- **Backend** : `./src:/app/src`, `./models:/app/models`, `./data:/app/data`
+- **Frontend** : `./frontend/src:/app/src`
+
+### Démarrage complet
+
+```bash
+# Construire les images et démarrer les conteneurs en arrière-plan
+docker compose up --build -d
+
+# Suivre les logs en temps réel
+docker compose logs -f
+
+# Arrêter les conteneurs
+docker compose down
+```
+
+### URLs d'accès
+
+| Service | URL | Description |
+|---------|-----|-------------|
+| Frontend React | http://localhost:3000 | Interface de comparaison des modèles |
+| Backend FastAPI | http://localhost:8000/docs | Documentation interactive Swagger UI |
+| Backend FastAPI | http://localhost:8000/ | Healthcheck |
+
+### Variables d'environnement
+
+| Variable | Service | Valeur par défaut | Description |
+|----------|---------|-------------------|-------------|
+| `REACT_APP_API_URL` | `app` | `http://api:8000` | URL du backend vue depuis le frontend (utilise le DNS Docker Compose) |
+| `PYTHONUNBUFFERED` | `api` | `1` | Désactive le buffer de sortie Python pour les logs Docker |
+| `CHOKIDAR_USEPOLLING` | `app` | `true` | Active le polling pour le hot-reloading Vite sous Docker Desktop (Windows/macOS) |
+
+> **Important** : Dans `docker-compose.yml`, `REACT_APP_API_URL` vaut `http://api:8000` (et non `localhost:8000`), car depuis le conteneur `app`, `localhost` désigne le conteneur lui-même. Le nom de service `api` est résolu par le réseau Docker interne.
+
+### Reconstruire après modification du code
+
+```bash
+# Reconstruire uniquement le service modifié
+docker compose build api
+docker compose up -d api
+
+#pour le frontend
+docker compose build app
+docker compose up -d app
+```
+
+### Nettoyage
+
+```bash
+# Arrêter et supprimer les conteneurs, réseaux et volumes anonymes
+docker compose down
+
+# Supprimer également les images construites
+docker compose down --rmi all
+```
+
+---
+
 ## Endpoints API Principaux
 
 | Méthode | Endpoint                            | Description                                                     |
