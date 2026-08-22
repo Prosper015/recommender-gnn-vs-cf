@@ -1,8 +1,13 @@
-pandas
 requests
 tqdm
 pyarrow
 mlflow
+# ML Engineer: baselines + LightGCN + evaluation
+torch==2.13.0
+scikit-surprise
+matplotlib
+pytest
+tabulate
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.14.2
