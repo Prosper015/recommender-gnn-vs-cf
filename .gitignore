@@ -47,3 +47,8 @@ Thumbs.db
 .idea/
 *.swp
 .env
+
+# MLflow (tracking local, propre à chaque machine)
+mlflow.db
+mlartifacts/
+mlruns/
