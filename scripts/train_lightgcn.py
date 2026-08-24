@@ -16,7 +16,14 @@ import argparse
 import json
 import random
 
-import mlflow
+# MLflow est optionnel : le suivi d'experiences n'est pas requis pour
+# produire les artefacts de production. Si MLflow n'est pas installe,
+# l'entrainement se deroule normalement sans logging.
+try:
+    import mlflow
+except ImportError:  # pragma: no cover
+    mlflow = None
+
 import numpy as np
 import torch
 
@@ -82,7 +89,11 @@ def train_one_config(
     rng = np.random.default_rng(seed)
     seen_items_per_user = build_seen_items_per_user(train_df, val_df)
 
-    run_ctx = mlflow.start_run(run_name=f"lightgcn_k{depth}_{dataset}") if log_to_mlflow else None
+    run_ctx = (
+        mlflow.start_run(run_name=f"lightgcn_k{depth}_{dataset}")
+        if (mlflow is not None and log_to_mlflow)
+        else None
+    )
     if run_ctx is not None:
         run_ctx.__enter__()
         mlflow.log_params(
@@ -173,10 +184,12 @@ if __name__ == "__main__":
     parser.add_argument("--embedding-dim", type=int, default=64)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--l2-reg", type=float, default=1e-4)
+    parser.add_argument("--no-mlflow", action="store_true", help="Desactive le logging MLflow")
     args = parser.parse_args()
 
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-    mlflow.set_experiment("model_training")
+    if mlflow is not None and not args.no_mlflow:
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+        mlflow.set_experiment("model_training")
 
     result = train_one_config(
         dataset=args.dataset,
@@ -185,5 +198,6 @@ if __name__ == "__main__":
         embedding_dim=args.embedding_dim,
         lr=args.lr,
         l2_reg=args.l2_reg,
+        log_to_mlflow=(mlflow is not None and not args.no_mlflow),
     )
     save_lightgcn(result["model"], result["user_id_map"], result["item_id_map"])

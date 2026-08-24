@@ -11,8 +11,14 @@ Usage :
 from __future__ import annotations
 
 import argparse
+from contextlib import nullcontext
 
-import mlflow
+# MLflow est optionnel : voir scripts/train_lightgcn.py pour la rationale.
+try:
+    import mlflow
+except ImportError:  # pragma: no cover
+    mlflow = None
+
 import pandas as pd
 
 from src.data_pipeline.config import MLFLOW_TRACKING_URI, PROJECT_ROOT, RANDOM_SEED
@@ -26,11 +32,12 @@ RESULTS_DIR = PROJECT_ROOT / "results"
 K_LIST = [5, 10, 20]
 
 
-def main(dataset: str = "100k") -> list[dict]:
-    mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
-    # Experience separee de "data_pipeline" (Data Engineer) pour ne pas
-    # melanger les runs des deux roles dans le meme dashboard MLflow.
-    mlflow.set_experiment("model_training")
+def main(dataset: str = "100k", use_mlflow: bool = True) -> list[dict]:
+    if mlflow is not None and use_mlflow:
+        mlflow.set_tracking_uri(MLFLOW_TRACKING_URI)
+        # Experience separee de "data_pipeline" (Data Engineer) pour ne pas
+        # melanger les runs des deux roles dans le meme dashboard MLflow.
+        mlflow.set_experiment("model_training")
 
     ratings_df = get_ratings(dataset)
     train_df, val_df, test_df = leave_one_out_split(ratings_df)
@@ -44,9 +51,10 @@ def main(dataset: str = "100k") -> list[dict]:
     }
 
     for name, recommender in recommenders.items():
-        with mlflow.start_run(run_name=f"{name}_{dataset}"):
-            mlflow.log_param("dataset", dataset)
-            mlflow.log_param("method", name)
+        with (mlflow.start_run(run_name=f"{name}_{dataset}") if (mlflow is not None and use_mlflow) else nullcontext()):
+            if mlflow is not None and use_mlflow:
+                mlflow.log_param("dataset", dataset)
+                mlflow.log_param("method", name)
 
             print(f"[{name}] entrainement...")
             recommender.fit(train_df)
@@ -59,7 +67,8 @@ def main(dataset: str = "100k") -> list[dict]:
                 all_item_ids=all_item_ids,
                 k_list=K_LIST,
             )
-            mlflow.log_metrics(mlflow_safe_names(metrics))
+            if mlflow is not None and use_mlflow:
+                mlflow.log_metrics(mlflow_safe_names(metrics))
             print(f"[{name}] {metrics}")
             results.append({"method": name, **metrics})
 
@@ -81,5 +90,6 @@ def main(dataset: str = "100k") -> list[dict]:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Entraine et evalue les baselines SVD + Item-Item CF.")
     parser.add_argument("--dataset", choices=["100k", "1m"], default="100k")
+    parser.add_argument("--no-mlflow", action="store_true", help="Desactive le logging MLflow")
     args = parser.parse_args()
-    main(args.dataset)
+    main(args.dataset, use_mlflow=not args.no_mlflow)
