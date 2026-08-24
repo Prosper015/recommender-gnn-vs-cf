@@ -6,6 +6,7 @@ test, l'avant-derniere va a la validation, tout le reste va au train.
 """
 
 import logging
+from pathlib import Path
 
 import pandas as pd
 
@@ -84,13 +85,20 @@ def save_splits(
     val_df: pd.DataFrame,
     test_df: pd.DataFrame,
     dataset: str,
-) -> None:
-    """Sauvegarde les 3 splits en parquet dans data/processed/."""
+) -> Path:
+    """
+    Sauvegarde les 3 splits en CSV dans data/processed/{dataset}/.
+
+    CSV (et non parquet) volontairement : pas de dependance a pyarrow,
+    portable et directement lisibles. Le backend n'a de toute facon pas
+    besoin de ces splits (il consomme les modeles + movies_cleaned.csv).
+    """
     out_dir = DATA_PROCESSED_DIR / dataset
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    train_df.to_parquet(out_dir / "train.parquet", index=False)
-    val_df.to_parquet(out_dir / "val.parquet", index=False)
-    test_df.to_parquet(out_dir / "test.parquet", index=False)
+    train_df.to_csv(out_dir / "train.csv", index=False)
+    val_df.to_csv(out_dir / "val.csv", index=False)
+    test_df.to_csv(out_dir / "test.csv", index=False)
 
     logger.info("Splits sauvegardes dans %s", out_dir)
+    return out_dir

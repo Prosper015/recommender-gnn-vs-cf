@@ -20,6 +20,7 @@ import requests
 from tqdm import tqdm
 
 from src.data_pipeline.config import (
+    DATA_PROCESSED_DIR,
     DATA_RAW_DIR,
     MOVIELENS_EXTRACTED_DIRNAME,
     MOVIELENS_URLS,
@@ -28,6 +29,13 @@ from src.data_pipeline.config import (
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
+
+# Ordre canonique des 19 genres de MovieLens 100k (colonnes 6..24 de u.item).
+GENRES_100K = [
+    "unknown", "Action", "Adventure", "Animation", "Children's", "Comedy",
+    "Crime", "Documentary", "Drama", "Fantasy", "Film-Noir", "Horror",
+    "Musical", "Mystery", "Romance", "Sci-Fi", "Thriller", "War", "Western",
+]
 
 
 def _validate_dataset_name(dataset: str) -> str:
@@ -180,6 +188,65 @@ def get_ratings(dataset: str = "100k", force: bool = False) -> pd.DataFrame:
         dataset, len(df), df["user_id"].nunique(), df["item_id"].nunique(),
     )
     return df
+
+
+def parse_movies(extracted_dir: Path, dataset: str) -> pd.DataFrame:
+    """
+    Parse les metadonnees films vers un DataFrame standardise :
+    colonnes = [movieId, title, genres] (genres separes par '|').
+
+    - 100k : fichier 'u.item', genres en 19 colonnes binaires.
+    - 1m   : fichier 'movies.dat', genre deja en texte '|'-sep.
+    """
+    dataset = _validate_dataset_name(dataset)
+
+    if dataset == "100k":
+        movies_path = extracted_dir / "u.item"
+        cols = ["movieId", "title", "release_date", "video_release_date", "imdb_url"] + GENRES_100K
+        movies = pd.read_csv(
+            movies_path, sep="|", names=cols, encoding="latin-1", engine="python",
+            usecols=range(len(cols)),
+        )
+        genre_flags = movies[GENRES_100K].fillna(0).astype(int)
+        movies["genres"] = genre_flags.apply(
+            lambda row: "|".join([g for g in GENRES_100K if int(row[g]) == 1 and g != "unknown"]),
+            axis=1,
+        )
+        movies = movies[["movieId", "title", "genres"]]
+    elif dataset == "1m":
+        movies_path = extracted_dir / "movies.dat"
+        movies = pd.read_csv(
+            movies_path, sep="::", names=["movieId", "title", "genres"],
+            encoding="latin-1", engine="python",
+        )
+
+    if not movies_path.exists():
+        raise FileNotFoundError(f"Fichier de films introuvable : {movies_path}.")
+
+    movies["movieId"] = movies["movieId"].astype("int64")
+    movies["title"] = movies["title"].astype(str).str.strip()
+    movies["genres"] = movies["genres"].astype(str)
+    return movies.reset_index(drop=True)
+
+
+def save_movies(movies: pd.DataFrame, out_path: Path) -> None:
+    """Sauvegarde le Catalogue de films consomme par le backend (movies_cleaned.csv)."""
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    movies.to_csv(out_path, index=False)
+    logger.info("Metadonnees films sauvegardees : %s (%d films)", out_path, len(movies))
+
+
+def get_movies(dataset: str = "100k", force: bool = False) -> pd.DataFrame:
+    """
+    Point d'entree : garantit que le dataset brut est present, parse les films
+    et les sauvegarde dans data/processed/movies_cleaned.csv. Retourne le DF.
+    """
+    dataset = _validate_dataset_name(dataset)
+    zip_path = download_zip(dataset, force=force)
+    extracted_dir = extract_zip(zip_path, dataset, force=force)
+    movies = parse_movies(extracted_dir, dataset)
+    save_movies(movies, DATA_PROCESSED_DIR / "movies_cleaned.csv")
+    return movies
 
 
 if __name__ == "__main__":
