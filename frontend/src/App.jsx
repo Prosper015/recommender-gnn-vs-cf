@@ -3,16 +3,30 @@ import axios from "axios";
 import { Film, User, Network, BarChart3, Users, RefreshCw, AlertCircle } from "lucide-react";
 import "./index.css";
 
-const API_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+// En Docker, surcharge via VITE_API_URL (ex: http://api:8000). En local, défaut 127.0.0.1:8000.
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 export default function App() {
-  const [userId, setUserId] = useState(1);
-  const [users] = useState([1, 2, 3, 4, 5]);
+  const [userId, setUserId] = useState(null);
+  const [users, setUsers] = useState([]);
   const [recommendations, setRecommendations] = useState({ lightgcn: [], svd: [], item_item: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // Récupère la liste RÉELLE des utilisateurs exposée par le backend.
+  const fetchUsers = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API_URL}/api/v1/users`);
+      const list = Array.isArray(res.data?.users) ? res.data.users : [];
+      setUsers(list);
+      setUserId((prev) => prev ?? list[0] ?? null);
+    } catch {
+      setError("Impossible de contacter l'API FastAPI (liste des utilisateurs).");
+    }
+  }, []);
+
   const fetchData = useCallback(async () => {
+    if (userId == null) return;
     setLoading(true);
     setError(null);
     try {
@@ -22,12 +36,23 @@ export default function App() {
         svd: Array.isArray(res.data?.svd) ? res.data.svd : [],
         item_item: Array.isArray(res.data?.item_item) ? res.data.item_item : [],
       });
-    } catch {
-      setError("Impossible de contacter l'API FastAPI (http://127.0.0.1:8000).");
+    } catch (err) {
+      const status = err?.response?.status;
+      if (status === 404) {
+        setError(`Utilisateur ${userId} inconnu du modèle (cold-start non géré).`);
+      } else if (status === 503) {
+        setError("Modèles non chargés côté backend. Lancez le pipeline puis redémarrez l'API.");
+      } else {
+        setError("Impossible de contacter l'API FastAPI.");
+      }
     } finally {
       setLoading(false);
     }
   }, [userId]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   useEffect(() => {
     fetchData();
