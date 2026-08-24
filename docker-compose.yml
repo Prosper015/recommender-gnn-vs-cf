@@ -1,10 +1,9 @@
-version: '3.8'
-
 services:
   api:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    # Port publie pour acces direct a la doc Swagger (/docs) depuis le host.
     ports:
       - "8000:8000"
     volumes:
@@ -15,20 +14,34 @@ services:
       - PYTHONUNBUFFERED=1
     networks:
       - recommender-network
+    # Pas de published port pour le front : il est atteint UNIQUEMENT via le proxy nginx.
 
   app:
     build:
       context: ./frontend
       dockerfile: Dockerfile.frontend
-    ports:
-      - "3000:3000"
     volumes:
       - ./frontend/src:/app/src
     depends_on:
       - api
     environment:
-      - REACT_APP_API_URL=http://api:8000
+      # URL RELATIVE : le frontend appelle /api/* sur la meme origine que le proxy.
+      # Marche depuis n'importe quelle machine (le navigateur ne resout jamais "api").
+      - VITE_API_URL=/
       - CHOKIDAR_USEPOLLING=true
+    networks:
+      - recommender-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      # Unique point d'entree externe : http://<IP-du-host>/
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - api
+      - app
     networks:
       - recommender-network
 

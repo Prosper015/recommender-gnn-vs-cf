@@ -1,16 +1,24 @@
-FROM python:3.10-slim
+FROM python:3.10-slim-bookworm
 
 WORKDIR /app
 
-# Installer les dépendances système nécessaires pour la compilation de certains packages Python
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    python3-dev \
-    && rm -rf /var/lib/apt/lists/*
+# Pas d'etape apt-get : toutes les dependances Python sont livrees en wheels
+# (torch, scikit-surprise, pandas, numpy, scipy...), donc aucune chaine de
+# compilation C n'est requise au build. On evite ainsi les miroirs Debian
+# (parfois indisponibles / 403 selon l'environnement, ex. image trixie).
 
-# Copier et installer les dépendances Python
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copier et installer les dependances Python (inférence uniquement)
+COPY requirements-prod.txt .
+
+# 1) torch en wheel CPU-only (pas de CUDA) : ~190 Mo au lieu de ~900 Mo.
+#    index-url = PyTorch (torche CPU), extra-index-url = PyPI pour les
+#    dependances transitives (sinon pip resolut tout via l'index PyTorch incomplet).
+RUN pip install --no-cache-dir torch==2.13.0 \
+    --index-url https://download.pytorch.org/whl/cpu \
+    --extra-index-url https://pypi.org/simple
+
+# 2) reste des dependances (fastapi, scikit-surprise, pandas, numpy, ...)
+RUN pip install --no-cache-dir -r requirements-prod.txt
 
 # Copier le code source et les artefacts
 COPY src/ ./src/
