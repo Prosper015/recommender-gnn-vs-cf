@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 # Importation du service singleton
-from src.services.model_service import model_service
+from src.services.model_service import UnknownUserError, model_service
 
 # Configuration des logs
 logger = logging.getLogger("recommender_api")
@@ -45,10 +45,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Configuration CORS pour autoriser le Frontend React (Vite)
+# Configuration CORS pour autoriser le Frontend React (Vite, local :5173 / Docker :3000)
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 
 app.add_middleware(
@@ -72,8 +74,8 @@ def read_root():
 
 @app.get("/api/v1/users", tags=["Users"])
 def get_users() -> Dict[str, List[int]]:
-    """Retourne la liste des identifiants d'utilisateurs disponibles pour les tests."""
-    return {"users": [1, 2, 3, 4, 5]}
+    """Retourne la liste réelle des identifiants d'utilisateurs connus du système."""
+    return {"users": model_service.get_available_users()}
 
 
 @app.get("/api/v1/recommendations/{user_id}", tags=["Recommendations"])
@@ -88,7 +90,15 @@ def get_recommendations(
     if not model_service.is_loaded:
         raise HTTPException(
             status_code=503,
-            detail="Les modèles de recommandation ne sont pas encore prêts ou n'ont pas pu être chargés."
+            detail="Les artefacts de recommandation ne sont pas chargés. "
+                   "Lancez `python -m scripts.run_pipeline` puis redémarrez l'API."
+        )
+
+    # Cold-start / utilisateur inconnu -> 404 explicite
+    if not model_service.is_known_user(user_id):
+        raise HTTPException(
+            status_code=404,
+            detail=f"user_id={user_id} est inconnu du dataset d'entraînement (cold-start non géré)."
         )
 
     try:
