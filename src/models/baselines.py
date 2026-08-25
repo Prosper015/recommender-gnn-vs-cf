@@ -73,6 +73,24 @@ class ItemItemCFRecommender(Recommender):
         return {int(u): self.recommend(u, top_n=top_n) for u in user_ids}
 
 
+def validation_rmse(recommender: SVDRecommender | ItemItemCFRecommender, val_df: pd.DataFrame) -> float:
+    """
+    RMSE sur validation (erreur de prediction de note, pas de ranking).
+
+    Sert a tracer une courbe de convergence/sensibilite (RMSE vs
+    hyperparametre) : contrairement a evaluate_full_ranking (~1.5M
+    predictions sur 100k, lent), ceci ne fait qu'une prediction par ligne de
+    validation (943 lignes) -- assez rapide pour reentrainer plusieurs
+    configurations d'affilee. Fonctionne pour SVD ET Item-Item CF : les deux
+    exposent le meme .model.test() de scikit-surprise.
+    """
+    from surprise import accuracy
+
+    testset = list(zip(val_df["user_id"], val_df["item_id"], val_df["rating"]))
+    predictions = recommender.model.test(testset)
+    return accuracy.rmse(predictions, verbose=False)
+
+
 def save_svd(recommender: SVDRecommender, out_path: Path) -> None:
     """
     Persiste l'algorithme scikit-surprise BRUT (recommender.model), pas le
