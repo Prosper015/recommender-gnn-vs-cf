@@ -51,7 +51,7 @@ class ModelService:
         # 4. Chargement LightGCN (PyTorch)
         if LIGHTGCN_MODEL_PATH.exists():
             device = torch.device("cpu")
-            self.lightgcn_model = torch.load(LIGHTGCN_MODEL_PATH, map_location=device)
+            self.lightgcn_model = torch.load(LIGHTGCN_MODEL_PATH, map_location=device, weights_only=False)
             logger.info(" Modèle LightGCN chargé.")
 
         self.is_loaded = True
