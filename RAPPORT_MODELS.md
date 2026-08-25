@@ -1,11 +1,11 @@
-# Modèles & Évaluation — Documentation (rôle ML Engineer)
+# Modèles & Évaluation - Documentation (rôle ML Engineer)
 
 **Auteur :** TCHABODI Sadikou
 **Branche :** `feature/models-lightgcn`
 **Dossiers :** `src/models/`, `src/evaluation/`, `scripts/`
 
 Ce document explique ce que fait le code de modélisation et d'évaluation,
-pourquoi chaque choix a été fait, et comment l'utiliser — dans le même
+pourquoi chaque choix a été fait, et comment l'utiliser - dans le même
 esprit que `RAPPORT_DATA_PIPELINE.md` (Data Engineer), pour que le rapport
 final et la présentation orale s'appuient sur une base écrite claire.
 
@@ -24,7 +24,7 @@ fonctionnement technique du code.
 
 ---
 
-## 1. Étape 1 — Protocole d'évaluation (`src/evaluation/metrics.py`)
+## 1. Étape 1 - Protocole d'évaluation (`src/evaluation/metrics.py`)
 
 **L'idée sur un exemple ultra simple :**
 Un utilisateur a un seul film "caché" à deviner (le test, issu du split
@@ -38,7 +38,7 @@ tête de liste). S'il ressortait en position 15, à `k=5` tout vaudrait 0
 échantillon de négatifs :**
 Krichene & Rendle (2020) montrent que les métriques calculées sur un
 échantillon de négatifs peuvent être trompeuses et sur-estimer la qualité
-réelle d'un modèle. Le sujet exige un protocole "rigoureux" — le
+réelle d'un modèle. Le sujet exige un protocole "rigoureux" - le
 full-ranking est le choix le plus strict, celui utilisé par le papier
 LightGCN lui-même.
 
@@ -47,25 +47,25 @@ LightGCN lui-même.
 modèle particulier), un jeu de test, les films déjà vus par chaque
 utilisateur (à exclure des candidats), et l'univers complet des item_id
 candidats. **Point important** : cet univers n'est jamais supposé être
-`[0, N)` — les baselines travaillent sur des movieId MovieLens bruts (non
+`[0, N)` - les baselines travaillent sur des movieId MovieLens bruts (non
 contigus), LightGCN sur des indices réindexés. Chaque appelant passe
 l'espace qui lui correspond.
 
 **Pourquoi la même fonction sert aux 3 méthodes :**
-Elle ne connaît aucun modèle en particulier — seulement une fonction
+Elle ne connaît aucun modèle en particulier - seulement une fonction
 `(user_id, candidats) -> scores`. C'est ce qui permet de comparer SVD,
 Item-Item CF et LightGCN avec un code d'évaluation strictement identique,
 donc une comparaison honnête.
 
 **Vérifié en conditions réelles :** 18 tests unitaires (`tests/test_metrics.py`),
 dont un qui compare le résultat de `evaluate_full_ranking()` à une moyenne
-calculée à la main sur un cas jouet — pas juste "ça tourne sans erreur".
+calculée à la main sur un cas jouet - pas juste "ça tourne sans erreur".
 
 **Sortie :** dict `{"precision@5": ..., "recall@10": ..., "ndcg@20": ...}`
 
 ---
 
-## 2. Étape 2 — Baselines classiques (`src/models/baselines.py`, `scripts/train_baselines.py`)
+## 2. Étape 2 - Baselines classiques (`src/models/baselines.py`, `scripts/train_baselines.py`)
 
 **SVD, l'idée sur un exemple ultra simple :**
 Chaque utilisateur et chaque film sont résumés par un vecteur de 100
@@ -82,12 +82,12 @@ l'utilisateur a données aux `k=40` films les plus similaires.
 
 **Pourquoi ces deux techniques précisément :**
 Ce sont les baselines explicitement citées par le sujet, tirées de
-Koren et al. (2009) — la technique qui a gagné le Netflix Prize — et du
+Koren et al. (2009) - la technique qui a gagné le Netflix Prize - et du
 filtrage collaboratif classique.
 
 **Pourquoi scikit-surprise (pas hand-rolled) :**
 Contrairement à LightGCN, ces méthodes sont censées être des techniques
-**classiques et éprouvées**, réutilisées telles quelles — pas la partie
+**classiques et éprouvées**, réutilisées telles quelles - pas la partie
 que le sujet demande d'implémenter à la main. `scikit-surprise` s'installe
 sans souci sous Windows (wheel précompilée pour Python 3.11, testé avant
 d'engager la conception dessus).
@@ -95,7 +95,7 @@ d'engager la conception dessus).
 **Contrat de sauvegarde (important pour l'intégration backend) :**
 `save_svd()` persiste l'algorithme scikit-surprise **brut** (pas un
 wrapper à nous), et `save_item_item()` persiste un dictionnaire précalculé
-`{user_id: [(item_id, score), ...]}` — format découvert en lisant
+`{user_id: [(item_id, score), ...]}` - format découvert en lisant
 directement le code du service backend (`model_service.py`, branche
 `feature/fastapi-backend`, pas encore mergée) avant d'écrire la fonction de
 sauvegarde, pour être certain de matcher exactement ce qu'il attend.
@@ -124,13 +124,13 @@ voir `results/baselines_hyperparameter_curves.png`.
 
 ---
 
-## 3. Étape 3 — LightGCN (`src/models/lightgcn.py`, `scripts/train_lightgcn.py`)
+## 3. Étape 3 - LightGCN (`src/models/lightgcn.py`, `scripts/train_lightgcn.py`)
 
 **L'idée sur un exemple ultra simple :**
 L'embedding de l'utilisateur 0 se recalcule à chaque couche comme la
 moyenne pondérée des embeddings de ses voisins (les films qu'il a notés) à
 la couche précédente. Après K couches, on fait la moyenne des K+1
-embeddings obtenus (couche 0 à K) — c'est l'embedding final. Le score
+embeddings obtenus (couche 0 à K) - c'est l'embedding final. Le score
 prédit = produit scalaire entre l'embedding final utilisateur et
 l'embedding final film.
 
@@ -139,7 +139,7 @@ Le service backend recharge les modèles avec `torch.load()` dans un
 environnement qui n'a que `torch` installé, pas PyG. Un modèle construit
 avec des couches PyG ne s'exécuterait pas côté API sans ajouter PyG au
 backend aussi. Le sujet autorise explicitement un "GNN ou équivalent
-simplifié" — rester en torch pur garde une empreinte de dépendances
+simplifié" - rester en torch pur garde une empreinte de dépendances
 identique entre entraînement et inférence, et reste totalement explicite
 pour le rapport (pas de boîte noire).
 
@@ -156,7 +156,7 @@ return torch.stack(layers, dim=0).mean(dim=0)   # combinaison finale
 construite une fois à partir du graphe d'Anne (`graph_builder.py`).
 
 **Entraînement (`bpr_loss()`) :** BPR (Bayesian Personalized Ranking,
-Rendle et al., 2009) — pour chaque interaction connue, tire un film que
+Rendle et al., 2009) - pour chaque interaction connue, tire un film que
 l'utilisateur n'a **pas** vu, et pousse le score du film aimé à être plus
 haut que celui du film négatif. `sample_bpr_triplets()` fait cet
 échantillonnage négatif par rejet.
@@ -171,11 +171,11 @@ backend traduise les scores LightGCN en vrais films).
 
 ---
 
-## 4. Étape 4 — Étude d'ablation / over-smoothing (`scripts/run_ablation.py`)
+## 4. Étape 4 - Étude d'ablation / over-smoothing (`scripts/run_ablation.py`)
 
 **L'idée sur un exemple ultra simple :**
 Plus on ajoute de couches de propagation, plus chaque embedding se
-rapproche de la moyenne de ses voisins — répété trop de fois, tous les
+rapproche de la moyenne de ses voisins - répété trop de fois, tous les
 embeddings du graphe finissent par se ressembler. Un modèle qui ne
 distingue plus les utilisateurs entre eux ne peut plus faire de
 recommandation personnalisée : c'est l'over-smoothing.
@@ -183,13 +183,13 @@ recommandation personnalisée : c'est l'over-smoothing.
 **Ce que le code fait, techniquement :**
 Entraîne un modèle **séparé, from scratch**, pour chaque profondeur K = 1,
 2, 3, 4, 5. Pour chacun, mesure à la fois la qualité (precision/recall/ndcg)
-et `embedding_similarity_diagnostic()` — la similarité cosinus moyenne
+et `embedding_similarity_diagnostic()` - la similarité cosinus moyenne
 entre 2000 paires de nœuds tirées au hasard dans tout le graphe (proche de
 0 = nœuds distincts, proche de 1 = over-smoothing confirmé).
 
-**Statut actuel — important, à ne pas confondre :**
+**Statut actuel - important, à ne pas confondre :**
 Un test de plomberie (3 époques par profondeur) a été fait pour valider
-que le pipeline tourne de bout en bout — **pas un résultat scientifique
+que le pipeline tourne de bout en bout - **pas un résultat scientifique
 exploitable**. Le run réel (50 époques × 5 profondeurs, ~13 minutes mesurées
 sur ce projet) reste à lancer avant de pouvoir tirer une vraie conclusion
 sur l'over-smoothing pour le rapport.
@@ -203,7 +203,7 @@ sauvegardé automatiquement dans `models/lightgcn_best.pt`.
 ## 5. Métadonnées films (`src/data_pipeline/movies.py`)
 
 **Le trou identifié :** le backend attend `data/processed/movies_cleaned.csv`
-(`movieId, title, genres`) pour afficher de vrais titres dans la démo — rien
+(`movieId, title, genres`) pour afficher de vrais titres dans la démo - rien
 ne le générait. Techniquement du ressort du Data Engineer (parsing de
 données brutes), mais bloquant pour toute l'équipe, donc traité ici.
 
@@ -211,21 +211,21 @@ données brutes), mais bloquant pour toute l'équipe, donc traité ici.
 `latin-1`), transforme les 19 colonnes de genre binaires en une chaîne
 lisible (`"Animation|Children's|Comedy"`), avec un fallback `"Genre inconnu"`
 plutôt qu'une chaîne vide (une chaîne vide redevient `NaN` quand pandas
-relit le CSV — sans ce fallback, la démo afficherait littéralement "nan").
+relit le CSV - sans ce fallback, la démo afficherait littéralement "nan").
 
 **Vérifié en conditions réelles :** `data/processed/movies_cleaned.csv`
 généré, 1682 films.
 
 ---
 
-## 6. Bug d'intégration trouvé (pas corrigé ici — hors de mon périmètre de fichiers)
+## 6. Bug d'intégration trouvé (pas corrigé ici - hors de mon périmètre de fichiers)
 
 En simulant l'appel exact du backend (`torch.load(path, map_location=device)`,
 sans `weights_only=False`) sur `lightgcn_best.pt`, le chargement **échoue** :
 PyTorch 2.6+ bloque par défaut la désérialisation de classes personnalisées
 pour des raisons de sécurité. Correctif d'une ligne
 (`weights_only=False`), à appliquer dans `model_service.py`
-(`feature/fastapi-backend`) — remonté au Dev Backend, pas corrigé
+(`feature/fastapi-backend`) - remonté au Dev Backend, pas corrigé
 directement puisque ce n'est pas mon fichier.
 
 ---
@@ -252,7 +252,7 @@ Des configurations de lancement/débogage VS Code équivalentes existent dans
 
 ## 8. Ce qui n'est PAS encore fait (pistes pour la suite)
 
-- **Le run réel de l'ablation** (50 époques × 5 profondeurs) — priorité n°1,
+- **Le run réel de l'ablation** (50 époques × 5 profondeurs) - priorité n°1,
   débloque le vrai tableau comparatif et l'analyse over-smoothing pour le
   rapport.
 - Regénérer `results/comparison_table.csv`/`.md` une fois ce run terminé.
@@ -272,5 +272,5 @@ Des configurations de lancement/débogage VS Code équivalentes existent dans
   Windows.
 - Lancer un script en mode debug VS Code (`F5`) peut occasionnellement
   planter au tout premier démarrage avec un `KeyboardInterrupt` provenant
-  de `debugpy` lui-même (pas de notre code) — relancer une seconde fois
+  de `debugpy` lui-même (pas de notre code) - relancer une seconde fois
   résout le problème dans la quasi-totalité des cas.
