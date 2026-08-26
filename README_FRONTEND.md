@@ -94,11 +94,10 @@ frontend/
 ├── vite.config.js             # Configuration Vite
 ├── .oxlintrc.json             # Configuration du linter
 └── src/
-    ├── main.jsx               # Bootstrap React (montage sur #root)
-    ├── App.jsx                # Composant principal
-    ├── index.css              # Styles globaux et thème
-    └── index.css              # (déjà listé ci-dessus)
-```
+     ├── main.jsx               # Bootstrap React (montage sur #root)
+     ├── App.jsx                # Composant principal
+     └── index.css              # Styles globaux et thème
+ ```
 
 ### Fichiers clés
 
@@ -161,8 +160,8 @@ App
 
 | State | Type | Rôle |
 |-------|------|------|
-| `userId` | `number` | Utilisateur sélectionné (défaut: `1`) |
-| `users` | `number[]` | Liste des utilisateurs disponibles (`[1, 2, 3, 4, 5]`) |
+| `userId` | `number \| null` | Utilisateur sélectionné (défaut: `null`, défini depuis la liste au chargement) |
+| `users` | `number[]` | Liste des utilisateurs disponibles, **chargée dynamiquement** depuis `GET /api/v1/users` (943 users réels MovieLens 100k) |
 | `recommendations` | `{ lightgcn: [], svd: [], item_item: [] }` | Données des 3 modèles |
 | `loading` | `boolean` | Indicateur de chargement lors du fetch |
 | `error` | `string \| null` | Message d'erreur si le backend est inaccessible |
@@ -174,10 +173,14 @@ App
 ### Point d'entrée API
 
 ```javascript
-const API_URL = "http://127.0.0.1:8000";
+// src/App.jsx — Vite n'expose que les variables prefixees VITE_ (cf. docker-compose).
+const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 ```
 
-Ce chemin pointe vers le serveur FastAPI. Si le backend tourne sur un autre port/hôte, modifiez cette constante.
+Ce chemin pointe vers le serveur FastAPI. En local, défaut `http://127.0.0.1:8000`.
+Sous Docker (reverse proxy nginx), `VITE_API_URL=/` (URL **relative**) : le frontend est
+servi par nginx et appelle `/api/v1/...` sur la même origine, donc accessible depuis
+n'importe quelle machine sans résoudre le nom de service `api`.
 
 ### Endpoint consommé
 

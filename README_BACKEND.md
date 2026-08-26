@@ -95,16 +95,22 @@ ITEM_ITEM_MODEL_PATH = MODELS_DIR / "item_item_model.pkl"
 MOVIES_CSV_PATH = DATA_DIR / "movies_cleaned.csv"
 ```
 
-### Fichiers attendus
+### Fichiers attendus (obligatoires en production)
 
-| Fichier | Rôle | Requis pour le mode production |
-|---------|------|-------------------------------|
+Ces artefacts sont générés par `python -m scripts.run_pipeline` (voir plus bas).
+Le backend **ne sert plus aucune donnée fictive** : tout est réel.
+
+| Fichier | Rôle | Requis |
+|---------|------|--------|
 | `data/processed/movies_cleaned.csv` | Métadonnées des films (`movieId`, `title`, `genres`) | **Oui** |
-| `models/lightgcn_best.pt` | Poids du modèle LightGCN (PyTorch) | Non (fallback mock) |
-| `models/svd_model.pkl` | Modèle SVD sérialisé (pickle) | Non (fallback mock) |
-| `models/item_item_model.pkl` | Modèle Item-Item CF sérialisé (pickle) | Non (fallback mock) |
+| `models/id_mappings.json` | Mappings MovieLens brut ↔ index internes (LightGCN) | **Oui** |
+| `models/lightgcn_best.pt` | Poids du modèle LightGCN (PyTorch) | Oui (sinon LightGCN vide) |
+| `models/svd_model.pkl` | Modèle SVD sérialisé (pickle) | Oui (sinon SVD vide) |
+| `models/item_item_model.pkl` | Modèle Item-Item CF sérialisé (pickle) | Oui (sinon Item-Item vide) |
 
-Si les fichiers de modèles sont absents, le service bascule automatiquement en **mode mock** (données fictives) pour permettre le développement et les tests d'intégration.
+Si `movies_cleaned.csv` ou `id_mappings.json` manquent, `is_loaded` reste `false` et
+l'endpoint `/api/v1/recommendations/{user_id}` répond `503`. Un modèle manquant
+renvoie simplement un tableau vide pour ce modèle (pas de faux de données).
 
 ### CORS
 
@@ -114,10 +120,10 @@ Le CORS est configuré dans `src/api/main.py` pour autoriser le frontend Vite :
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 ```
-
-Ajoutez votre origine si le frontend tourne sur un autre port/hôte.
 
 ---
 
@@ -180,12 +186,28 @@ Point d'entrée de l'application. Responsabilités :
 
 Couche service (métier). Responsabilités :
 
-- Chargement des artefacts (modèles PyTorch / pickle, CSV films)
-- Génération des recommandations pour chaque modèle
+- Chargement des artefacts réels (modèles PyTorch / pickle, CSV films, mappings d'index)
+- Génération des recommandations pour chaque modèle (LightGCN, SVD, Item-Item)
+- Conversion d'index : LightGCN travaille en indices internes reindexés, le backend
+  les convertit en `movieId` bruts MovieLens via `models/id_mappings.json`
 - Formatage uniforme des résultats (mapping `movieId` → `title`, `genres`, `score`)
-- Fallback automatique vers des **données fictives** si les modèles réels sont absents
+- **Plus de fallback mock** : un modèle non chargé renvoie `[]` ; un `user_id`
+  inconnu déclenche une `UnknownUserError` → `404` côté API
 
 ---
+
+## Génération des artefacts (démockage)
+
+Avant de lancer l'API en production, générez les vrais artefacts depuis MovieLens :
+
+```bash
+# Depuis la racine du projet (environnement actif)
+python -m scripts.run_pipeline --dataset 100k --epochs 50
+```
+
+Ce script unique : télécharge MovieLens, parse films + ratings, applique le split
+LOO temporel, entraîne et exporte les 3 modèles + `movies_cleaned.csv` + `id_mappings.json`.
+Ajoutez `--no-mlflow` si MLflow n'est pas installé (logging optionnel).
 
 ## Endpoints API
 
@@ -209,11 +231,11 @@ Healthcheck de l'API.
 
 Retourne la liste des identifiants utilisateurs disponibles pour les tests.
 
-**Réponse 200 :**
+**Réponse 200 :** liste réelle des `user_id` connus du dataset (MovieLens 100k → 943 utilisateurs).
 
 ```json
 {
-  "users": [1, 2, 3, 4, 5]
+  "users": [1, 2, 3, 4, 5, "...", 943]
 }
 ```
 
@@ -290,8 +312,8 @@ Chaque élément dans les tableaux `lightgcn`, `svd` et `item_item` suit ce sch�
 |------|---------------|------------------|
 | `200` | Succès | La requête est valide et les recommandations ont été générées |
 | `400` | Requête invalide | Paramètres mal formés (ex: `top_n` hors bornes) |
-| `404` | Utilisateur non trouvé | `user_id` inexistant dans les données (non implémenté actuellement) |
-| `503` | Service indisponible | Les modèles ne sont pas chargés (`is_loaded = false`) |
+| `404` | Utilisateur non trouvé | `user_id` inexistant dans le dataset d'entraînement (cold-start) |
+| `503` | Service indisponible | `movies_cleaned.csv` ou `id_mappings.json` manquants (`is_loaded = false`) |
 | `500` | Erreur serveur | Exception non gérée pendant la génération des recommandations |
 
 ---
@@ -307,43 +329,17 @@ Chaque élément dans les tableaux `lightgcn`, `svd` et `item_item` suit ce sch�
 
 ### SVD (Surprise / Scikit-Learn)
 
-- **Entrée** : `user_id`, `movie_id`
+- **Entrée** : `user_id`, `movie_id` (movieId **bruts** MovieLens)
 - **Sortie** : note prédite (`est`) pour chaque film
-- **Chargement** : `pickle.load()` sur `models/svd_model.pkl`
+- **Chargement** : `pickle.load()` sur `models/svd_model.pkl` (objet `surprise.SVD` brut)
 - **Inférence** : prédit la note que l'utilisateur donnerait à chaque film, puis tri décroissant
 
 ### Item-Item CF
 
-- **Entrée** : `user_id`
-- **Sortie** : liste de recommandations basées sur la similarité entre items
+- **Entrée** : `user_id` (movieId brut)
+- **Sortie** : dict précalculé `{user_id: [(item_id, score), ...]}` (movieId bruts)
 - **Chargement** : `pickle.load()` sur `models/item_item_model.pkl`
 - **Inférence** : agrège les items similaires à ceux déjà aimés par l'utilisateur
-
----
-
-## Mode mock (données fictives)
-
-Lorsque les fichiers de modèles sont absents ou en cas d'erreur d'inférence, le service bascule automatiquement vers des **données fictives** pour garantir la continuité du développement et des tests d'intégration.
-
-### Caractéristiques du mock
-
-- **Source** : `_generate_mock_recommendations()` dans `model_service.py`
-- **Catalogue** : 10 films populaires simulés
-- **Scores** : pseudo-aléatoires mais cohérents par modèle
-  - LightGCN : base ~0.95
-  - SVD : base ~4.2
-  - Item-Item : base ~0.88
-- **Déterministe** : dépend de `user_id` et `top_n`, reproductible
-- **Format JSON** : identique au mode production (`movieId`, `title`, `genres`, `score`)
-
-### Activer / désactiver le mode mock
-
-Le mode mock est **automatique**. Pour le forcer en développement :
-
-1. Supprimez ou renommez les fichiers dans `models/`
-2. Supprimez ou renommez `data/processed/movies_cleaned.csv`
-
-Pour utiliser les vrais modèles, placez les artefacts dans les chemins attendus et redémarrez le serveur.
 
 ---
 
@@ -358,7 +354,7 @@ Si un artefact ne peut pas être chargé (fichier manquant, format invalide), l'
 Chaque méthode de recommandation est encapsulée dans un `try/except`. En cas d'erreur :
 
 1. L'erreur est loggée avec le contexte (`user_id`, `top_n`)
-2. La méthode retourne une liste vide `[]` ou bascule vers le mock
+2. La méthode retourne une liste vide `[]`
 3. L'endpoint renvoie un JSON valide avec des tableaux vides pour le modèle en erreur
 4. Le frontend affiche "Aucune recommandation disponible" pour le modèle concerné
 
@@ -376,6 +372,8 @@ Le middleware CORS est configuré pour autoriser les requêtes provenant du fron
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
 ]
 ```
 

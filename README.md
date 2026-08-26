@@ -95,10 +95,10 @@ docker compose up --build
 ```
 
 Puis ouvrir :
-- **Interface de comparaison** : http://localhost:5173
-- **Documentation API (Swagger)** : http://localhost:8000/docs
+    - **Interface de comparaison** : http://localhost
+    - **Documentation API (Swagger)** : http://localhost:8000/docs
 
-> **Note :** Si tu modifies le code backend ou frontend, Docker recharge automatiquement grâce aux volumes montés (`./src:/app/src`, `./frontend/src:/app/src`).
+> **Note :** En développement, vous pouvez monter les volumes source (`./src:/app/src`, `./frontend/src:/app/src`) pour itérer rapidement. Pour utiliser le mode développement avec rechargement à chaud, remplacez temporairement les Dockerfiles par leurs versions `dev` (`--reload` pour uvicorn, `npm run dev` pour Vite).
 
 ### Option B : Installation locale (sans Docker)
 

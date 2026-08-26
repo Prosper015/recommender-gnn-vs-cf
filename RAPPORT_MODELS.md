@@ -200,7 +200,7 @@ sauvegardé automatiquement dans `models/lightgcn_best.pt`.
 
 ---
 
-## 5. Métadonnées films (`src/data_pipeline/movies.py`)
+## 5. Métadonnées films (`src/data_pipeline/download.py`)
 
 **Le trou identifié :** le backend attend `data/processed/movies_cleaned.csv`
 (`movieId, title, genres`) pour afficher de vrais titres dans la démo - rien
@@ -218,15 +218,18 @@ généré, 1682 films.
 
 ---
 
-## 6. Bug d'intégration trouvé (pas corrigé ici - hors de mon périmètre de fichiers)
+## 6. Bug d'intégration trouvé (corrigé)
 
-En simulant l'appel exact du backend (`torch.load(path, map_location=device)`,
-sans `weights_only=False`) sur `lightgcn_best.pt`, le chargement **échoue** :
-PyTorch 2.6+ bloque par défaut la désérialisation de classes personnalisées
-pour des raisons de sécurité. Correctif d'une ligne
-(`weights_only=False`), à appliquer dans `model_service.py`
-(`feature/fastapi-backend`) - remonté au Dev Backend, pas corrigé
-directement puisque ce n'est pas mon fichier.
+En sauvegardant le **modèle complet** via `torch.save(model, ...)` (au lieu du
+`state_dict`), le backend devait appeler `torch.load(path, weights_only=False)`
+pour désérialiser la classe personnalisée `LightGCN`. PyTorch 2.6+ bloque par
+défaut la désérialisation de classes personnalisées pour des raisons de
+sécurité.
+
+**Correctif appliqué :** `train_lightgcn.py:save_lightgcn()` sauvegarde désormais
+un **checkpoint** (`state_dict` + métadonnées) et `model_service.py`
+reconstitue le modèle en mémoire puis charge le `state_dict` avec
+`weights_only=True` — éliminant le risque d'exécution de code arbitraire.
 
 ---
 
@@ -259,8 +262,9 @@ Des configurations de lancement/débogage VS Code équivalentes existent dans
 - Extension optionnelle à MovieLens 1M (fait pour l'instant sur 100K
   uniquement).
 - La démo web (sélection utilisateur → top-N par méthode, côte à côte) —
-  hors de ce périmètre (Backend/Frontend), mais bloquée tant que
-  `model_service.py` n'applique pas le correctif `weights_only=False`.
+  hors de ce périmètre (Backend/Frontend), mais désormais débloquée car le
+  correctif `weights_only=True` (via `state_dict`) a été appliqué dans
+  `model_service.py`.
 - Le rapport scientifique (8-20 pages).
 
 ---
