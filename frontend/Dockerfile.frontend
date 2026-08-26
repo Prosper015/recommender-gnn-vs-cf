@@ -11,8 +11,14 @@ RUN npm install
 # Copier le reste du code source
 COPY . .
 
-# Exposer le port du frontend
-EXPOSE 3000
+# Build de production
+RUN npm run build
 
-# Démarrer le serveur de développement Vite
-CMD ["npm", "run", "dev", "--", "--host"]
+# Installer le serveur statique pour la production
+RUN npm install -g serve
+
+# Exposer le port du frontend
+EXPOSE 80
+
+# Servir le build de production
+CMD ["serve", "-s", "dist", "-l", "80"]
