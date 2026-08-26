@@ -10,7 +10,7 @@ import torch
 logger = logging.getLogger("recommender_api")
 logging.basicConfig(level=logging.INFO)
 
-# CHEMINS DIRECTS (racine projet = 3 niveaux au-dessus de ce fichier)
+# CHEMINS DIRECTS
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 MODELS_DIR = BASE_DIR / "models"
@@ -31,11 +31,6 @@ class ModelService:
     """
     Charge les ARTEFACTS REELS (modeles entraines + mappings d'index +
     metadonnees films) et genere les recommandations cote a cote.
-
-    Plus aucun fallback vers des donnees fictives (mock) : si un artefact est
-    manquant, le modele concerne renvoie une liste vide et l'API reste
-    operationnelle pour les modeles disponibles. Le healthcheck reflete
-    l'etat global via `is_loaded`.
     """
 
     def __init__(self) -> None:
@@ -43,6 +38,7 @@ class ModelService:
         self.svd_model: Optional[Any] = None
         self.item_item_model: Optional[Any] = None
         self.movies_df: Optional[pd.DataFrame] = None
+        self.movies_dict: Dict[int, Dict[str, Any]] = {}
 
         # Mappings MovieLens brut <-> index internes (LightGCN)
         self.user_raw_to_internal: Dict[int, int] = {}
@@ -54,20 +50,19 @@ class ModelService:
         self.svd_available: bool = False
         self.item_item_available: bool = False
 
-    # ------------------------------------------------------------------ #
-    # Chargement des artefacts réels
-    # ------------------------------------------------------------------ #
     def load_artifacts(self) -> None:
         logger.info("Chargement des artefacts réels...")
 
-        # 1. Métadonnées films (obligatoire pour le formatage des cartes)
+        # 1. Métadonnées films
         if MOVIES_CSV_PATH.exists():
             self.movies_df = pd.read_csv(MOVIES_CSV_PATH)
+            # Optimisation O(1) : Conversion en dictionnaire pour accès rapide
+            self.movies_dict = self.movies_df.set_index("movieId").to_dict(orient="index")
             logger.info("Métadonnées films chargées : %d films.", len(self.movies_df))
         else:
-            logger.error("Fichier introuvable : %s (lancez `python -m scripts.run_pipeline`).", MOVIES_CSV_PATH)
+            logger.error("Fichier introuvable : %s", MOVIES_CSV_PATH)
 
-        # 2. Mappings d'index (brut <-> interne) — requis pour LightGCN
+        # 2. Mappings d'index
         if ID_MAPPINGS_PATH.exists():
             with open(ID_MAPPINGS_PATH, "r", encoding="utf-8") as f:
                 mappings = json.load(f)
@@ -78,9 +73,9 @@ class ModelService:
             self.item_internal_to_raw = {v: k for k, v in item_map.items()}
             logger.info("Mappings d'index chargés : %d users, %d items.", len(user_map), len(item_map))
         else:
-            logger.error("Fichier introuvable : %s (lancez `python -m scripts.run_pipeline`).", ID_MAPPINGS_PATH)
+            logger.error("Fichier introuvable : %s", ID_MAPPINGS_PATH)
 
-        # 3. Modèle SVD (surprise, pickle)
+        # 3. Modèle SVD
         if SVD_MODEL_PATH.exists():
             with open(SVD_MODEL_PATH, "rb") as f:
                 self.svd_model = pickle.load(f)
@@ -89,7 +84,7 @@ class ModelService:
         else:
             logger.warning("Modèle SVD absent : %s", SVD_MODEL_PATH)
 
-        # 4. Modèle Item-Item CF (dict précalculé pickle)
+        # 4. Modèle Item-Item CF
         if ITEM_ITEM_MODEL_PATH.exists():
             with open(ITEM_ITEM_MODEL_PATH, "rb") as f:
                 self.item_item_model = pickle.load(f)
@@ -101,61 +96,64 @@ class ModelService:
         # 5. Modèle LightGCN (PyTorch)
         if LIGHTGCN_MODEL_PATH.exists():
             device = torch.device("cpu")
-            self.lightgcn_model = torch.load(LIGHTGCN_MODEL_PATH, map_location=device, weights_only=False)
-            self.lightgcn_model.eval()
-            self.lightgcn_available = True
-            logger.info("Modèle LightGCN chargé.")
+            from src.models.lightgcn import LightGCN
+            try:
+                checkpoint = torch.load(LIGHTGCN_MODEL_PATH, map_location=device, weights_only=True)
+                self.lightgcn_model = LightGCN(
+                    num_users=checkpoint["num_users"],
+                    num_items=checkpoint["num_items"],
+                    embedding_dim=checkpoint["embedding_dim"],
+                    num_layers=checkpoint["num_layers"],
+                )
+                self.lightgcn_model.load_state_dict(checkpoint["state_dict"])
+                self.lightgcn_model.adjacency_indices = checkpoint["adjacency_indices"]
+                self.lightgcn_model.adjacency_values = checkpoint["adjacency_values"]
+            except (pickle.UnpicklingError, KeyError):
+                logger.warning("Format hérité détecté pour lightgcn_best.pt. Chargement direct.")
+                self.lightgcn_model = torch.load(LIGHTGCN_MODEL_PATH, map_location=device, weights_only=False)
+            
+            # Correction Bug : Placer eval() à l'intérieur du bloc if pour éviter un AttributeError
+            if self.lightgcn_model is not None:
+                self.lightgcn_model.eval()
+                self.lightgcn_available = True
+                logger.info("Modèle LightGCN chargé.")
         else:
             logger.warning("Modèle LightGCN absent : %s", LIGHTGCN_MODEL_PATH)
 
-        # Prêt = au moins les métadonnées films + les mappings d'index.
-        # (Les modèles peuvent être absents individuellement sans bloquer l'API.)
         self.is_loaded = (self.movies_df is not None) and bool(self.user_raw_to_internal)
 
-    # ------------------------------------------------------------------ #
     # Helpers
-    # ------------------------------------------------------------------ #
     def is_known_user(self, user_id: int) -> bool:
         return user_id in self.user_raw_to_internal
 
     def get_available_users(self, limit: Optional[int] = None) -> List[int]:
-        """Liste des identifiants utilisateurs réels (MovieLens bruts) connus du système."""
         users = sorted(self.user_raw_to_internal.keys())
-        if limit is not None:
-            users = users[:limit]
-        return users
+        return users[:limit] if limit is not None else users
 
     def _format_recommendations(self, movie_ids: List[int], scores: List[float]) -> List[Dict[str, Any]]:
-        """Formate une liste d'identifiants de films (movieId BRUTS) avec leurs métadonnées."""
-        if self.movies_df is None:
+        if not self.movies_dict:
             return []
 
         recommendations = []
         for movie_id, score in zip(movie_ids, scores):
-            movie_row = self.movies_df[self.movies_df["movieId"] == movie_id]
-            if not movie_row.empty:
-                title = movie_row.iloc[0]["title"]
-                genres = movie_row.iloc[0]["genres"] if "genres" in movie_row.columns else ""
+            # Recherche rapide O(1) via le dictionnaire
+            movie_data = self.movies_dict.get(movie_id)
+            if movie_data:
                 recommendations.append({
                     "movieId": int(movie_id),
-                    "title": str(title),
-                    "genres": str(genres),
+                    "title": str(movie_data.get("title", "")),
+                    "genres": str(movie_data.get("genres", "")),
                     "score": round(float(score), 4),
                 })
         return recommendations
 
-    # ------------------------------------------------------------------ #
-    # Recommandations par modèle (artefacts réels uniquement)
-    # ------------------------------------------------------------------ #
+    # Recommandations
     def recommend_lightgcn(self, user_id: int, top_n: int = 5) -> List[Dict[str, Any]]:
-        """Recommandations via LightGCN (PyTorch), en indices internes convertis en movieId bruts."""
-        if not self.lightgcn_available or self.movies_df is None:
+        if not self.lightgcn_available or not self.movies_dict:
             return []
 
         if not self.is_known_user(user_id):
-            raise UnknownUserError(
-                f"user_id={user_id} inconnu du modèle LightGCN (cold-start non géré)."
-            )
+            raise UnknownUserError(f"user_id={user_id} inconnu du modèle LightGCN (cold-start non géré).")
 
         try:
             internal_user = self.user_raw_to_internal[user_id]
@@ -167,7 +165,6 @@ class ModelService:
                     scores = self.lightgcn_model(user_tensor).squeeze(0)
 
                 top_scores, top_indices = torch.topk(scores, top_n)
-                # Conversion index interne -> movieId brut avant formatage
                 raw_ids = [self.item_internal_to_raw.get(int(idx), -1) for idx in top_indices.tolist()]
                 return self._format_recommendations(raw_ids, top_scores.tolist())
         except UnknownUserError:
@@ -177,17 +174,14 @@ class ModelService:
             return []
 
     def recommend_svd(self, user_id: int, top_n: int = 5) -> List[Dict[str, Any]]:
-        """Recommandations via SVD (Surprise) : prédit une note par film, tri décroissant."""
         if not self.svd_available or self.movies_df is None:
             return []
 
         try:
             all_movie_ids = self.movies_df["movieId"].unique()
-            predictions = []
-            for movie_id in all_movie_ids:
-                if hasattr(self.svd_model, "predict"):
-                    pred = self.svd_model.predict(user_id, movie_id)
-                    predictions.append((movie_id, pred.est))
+            testset = [(user_id, int(movie_id), 0.0) for movie_id in all_movie_ids]
+            batch_preds = self.svd_model.test(testset)
+            predictions = [(int(p.iid), float(p.est)) for p in batch_preds]
 
             predictions.sort(key=lambda x: x[1], reverse=True)
             top_predictions = predictions[:top_n]
@@ -200,14 +194,12 @@ class ModelService:
             return []
 
     def recommend_item_item(self, user_id: int, top_n: int = 5) -> List[Dict[str, Any]]:
-        """Recommandations via Item-Item CF (dict précalculé {user_id: [(item_id, score)]})."""
         if not self.item_item_available or self.movies_df is None:
             return []
 
         try:
             if isinstance(self.item_item_model, dict):
                 if user_id not in self.item_item_model:
-                    # Utilisateur non présent dans le précalcul -> aucune reco (cold-start Item-Item)
                     return []
                 user_preds = self.item_item_model[user_id][:top_n]
                 movie_ids = [p[0] for p in user_preds]

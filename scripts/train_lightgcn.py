@@ -159,10 +159,18 @@ def train_one_config(
 def save_lightgcn(model: LightGCN, user_id_map: dict, item_id_map: dict, out_dir=MODELS_DIR) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Objet MODELE COMPLET (pas seulement le state_dict) : model_service.py
-    # (feature/fastapi-backend) fait torch.load(path) et appelle directement
-    # .get_user_item_scores() sur l'objet recharge.
-    torch.save(model.to("cpu"), out_dir / "lightgcn_best.pt")
+    # Checkpoint (state_dict + métadonnées) — model_service.py reconstitue
+    # le modèle en mémoire puis charge le state_dict (weights_only=True au load).
+    checkpoint = {
+        "state_dict": model.state_dict(),
+        "num_users": model.num_users,
+        "num_items": model.num_items,
+        "num_layers": model.num_layers,
+        "embedding_dim": model.embedding_dim,
+        "adjacency_indices": model.adjacency_indices,
+        "adjacency_values": model.adjacency_values,
+    }
+    torch.save(checkpoint, out_dir / "lightgcn_best.pt")
 
     # Comble le trou d'integration identifie entre branches : le mapping
     # movieId brut <-> index interne n'etait exporte nulle part, alors que

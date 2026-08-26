@@ -28,11 +28,14 @@ async def lifespan(app: FastAPI):
     au démarrage de l'application FastAPI.
     """
     logger.info("Démarrage du serveur FastAPI...")
-    try:
-        model_service.load_artifacts()
-        logger.info("Tous les artefacts ont été chargés avec succès.")
-    except Exception as e:
-        logger.error(f"Erreur lors du chargement des artefacts : {e}")
+    model_service.load_artifacts()
+    logger.info(
+        "Artéfacts chargés. is_loaded=%s, lightgcn=%s, svd=%s, item_item=%s",
+        model_service.is_loaded,
+        model_service.lightgcn_available,
+        model_service.svd_available,
+        model_service.item_item_available,
+    )
     yield
     logger.info("Arrêt du serveur FastAPI.")
 
