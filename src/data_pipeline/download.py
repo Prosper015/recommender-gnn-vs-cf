@@ -211,7 +211,7 @@ def parse_movies(extracted_dir: Path, dataset: str) -> pd.DataFrame:
         movies["genres"] = genre_flags.apply(
             lambda row: "|".join([g for g in GENRES_100K if int(row[g]) == 1 and g != "unknown"]),
             axis=1,
-        )
+        ).replace("", "Genre inconnu")
         movies = movies[["movieId", "title", "genres"]]
     elif dataset == "1m":
         movies_path = extracted_dir / "movies.dat"

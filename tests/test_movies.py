@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from src.data_pipeline.movies import parse_movies_100k
+from src.data_pipeline.download import parse_movies
 
 U_ITEM_SAMPLE = (
     "1|Toy Story (1995)|01-Jan-1995||http://example.com/toy-story"
@@ -15,7 +15,7 @@ U_ITEM_SAMPLE = (
 def test_parse_movies_100k_extracts_title_and_genres(tmp_path: Path):
     (tmp_path / "u.item").write_text(U_ITEM_SAMPLE, encoding="latin-1")
 
-    df = parse_movies_100k(tmp_path)
+    df = parse_movies(tmp_path, "100k")
 
     assert list(df.columns) == ["movieId", "title", "genres"]
     assert df.shape[0] == 3
@@ -33,7 +33,7 @@ def test_parse_movies_100k_unknown_genre_uses_placeholder_not_empty_string(tmp_p
     # ET cote backend) et afficherait litteralement "nan" dans la demo.
     (tmp_path / "u.item").write_text(U_ITEM_SAMPLE, encoding="latin-1")
 
-    df = parse_movies_100k(tmp_path)
+    df = parse_movies(tmp_path, "100k")
 
     mystery = df.loc[df["movieId"] == 3].iloc[0]
     assert mystery["genres"] == "Genre inconnu"
@@ -42,7 +42,7 @@ def test_parse_movies_100k_unknown_genre_uses_placeholder_not_empty_string(tmp_p
 
 def test_parse_movies_100k_raises_if_file_missing(tmp_path: Path):
     try:
-        parse_movies_100k(tmp_path)
+        parse_movies(tmp_path, "100k")
     except FileNotFoundError:
         return
-    raise AssertionError("parse_movies_100k aurait du lever FileNotFoundError")
+    raise AssertionError("parse_movies aurait du lever FileNotFoundError")
