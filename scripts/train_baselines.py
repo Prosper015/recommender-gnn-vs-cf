@@ -76,7 +76,7 @@ def main(dataset: str = "100k", use_mlflow: bool = True) -> list[dict]:
             save_svd(recommender, MODELS_DIR / "svd_model.pkl")
         else:
             save_item_item(
-                recommender, ratings_df["user_id"].unique(), MODELS_DIR / "item_item_model.pkl", top_n=10
+                recommender, ratings_df["user_id"].unique(), MODELS_DIR / "item_item_model.pkl", top_n=20
             )
         print(f"[{name}] modele sauvegarde dans {MODELS_DIR}")
 
