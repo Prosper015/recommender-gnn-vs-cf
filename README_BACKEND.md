@@ -249,7 +249,7 @@ Génère les recommandations pour un utilisateur donné.
 
 | Paramètre | Type | Défaut | Description |
 |-----------|------|--------|-------------|
-| `user_id` | `int` | — (obligatoire dans le chemin) | Identifiant de l'utilisateur |
+| `user_id` | `int` | - (obligatoire dans le chemin) | Identifiant de l'utilisateur |
 | `top_n` | `int` | `5` | Nombre de recommandations par modèle (min: 1, max: 20) |
 
 **Exemple de requête :**

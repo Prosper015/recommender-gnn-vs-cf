@@ -115,7 +115,7 @@ hyperparamètres par défaut ne sont pas arbitraires :**
 En faisant varier `n_epochs` (SVD) et `k_neighbors` (Item-Item CF) et en
 mesurant le RMSE sur validation, les deux courbes montrent un vrai
 sur-apprentissage : le RMSE descend puis **remonte légèrement** après le
-minimum (SVD : minimum ≈ 15 époques ; Item-Item CF : minimum ≈ k=40) —
+minimum (SVD : minimum ≈ 15 époques ; Item-Item CF : minimum ≈ k=40) -
 voir `results/baselines_hyperparameter_curves.png`.
 
 **Sorties :** `models/svd_model.pkl`, `models/item_item_model.pkl`,
@@ -229,7 +229,7 @@ sécurité.
 **Correctif appliqué :** `train_lightgcn.py:save_lightgcn()` sauvegarde désormais
 un **checkpoint** (`state_dict` + métadonnées) et `model_service.py`
 reconstitue le modèle en mémoire puis charge le `state_dict` avec
-`weights_only=True` — éliminant le risque d'exécution de code arbitraire.
+`weights_only=True` - éliminant le risque d'exécution de code arbitraire.
 
 ---
 
@@ -261,7 +261,7 @@ Des configurations de lancement/débogage VS Code équivalentes existent dans
 - Regénérer `results/comparison_table.csv`/`.md` une fois ce run terminé.
 - Extension optionnelle à MovieLens 1M (fait pour l'instant sur 100K
   uniquement).
-- La démo web (sélection utilisateur → top-N par méthode, côte à côte) —
+- La démo web (sélection utilisateur → top-N par méthode, côte à côte) -
   hors de ce périmètre (Backend/Frontend), mais désormais débloquée car le
   correctif `weights_only=True` (via `state_dict`) a été appliqué dans
   `model_service.py`.

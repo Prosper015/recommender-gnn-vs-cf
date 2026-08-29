@@ -1,6 +1,6 @@
 # Système de Recommandation de Films : LightGCN (GNN) vs Baselines Classiques
 
-> **Projet de fin d'année — Comparaison empirique d'approches de filtrage collaboratif sur MovieLens 100K**
+> **Projet de fin d'année - Comparaison empirique d'approches de filtrage collaboratif sur MovieLens 100K**
 
 ---
 
@@ -47,7 +47,7 @@
 | **Item-Item CF** | "Tu as aimé ce film ? Tu aimeras sûrement ses cousins" | Pour un utilisateur, regarde les films qu'il a déjà aimés, trouve les films les plus similaires (même genre, même public), et recommande ceux-ci. La similarité est calculée par la note moyenne des autres utilisateurs. |
 | **LightGCN** | "Dis-moi qui tu fréquentes, je te dirai qui tu es" | Le modèle parcourt le graphe : il regarde les films qu'un utilisateur a aimés, puis les utilisateurs qui ont aimé ces films, puis d'autres films que ces utilisateurs ont aimés, etc. Après plusieurs "couches" de propagation, il obtient une représentation riche de chaque utilisateur et film. |
 
-**Métriques d'évaluation — ce qu'elles mesurent dans la vraie vie :**
+**Métriques d'évaluation - ce qu'elles mesurent dans la vraie vie :**
 
 - **Recall@K** : "Parmi les 10 films que le système recommande, combien se trouvent dans le top de l'utilisateur ?" Si Recall@10 = 0.2, cela signifie qu'en moyenne, le système trouve 1 film sur 5 que l'utilisateur a effectivement vu et apprécié.
 - **NDCG@K** : "Est-ce que les bons films sont en haut de la liste ?" Un NDCG élevé signifie que les films pertinents ne sont pas seulement dans le top 10, mais en **première position** (position 1, 2, 3...). C'est plus exigeant que le Recall.
@@ -58,7 +58,7 @@
 
 **Mission :** Faire le pont entre l'interface web et les modèles de machine learning, en chargeant les modèles **une seule fois** en mémoire.
 
-**Le Pattern Singleton — `ModelService` (`model_service.py`) :**
+**Le Pattern Singleton - `ModelService` (`model_service.py`) :**
 
 > **Pourquoi charger le modèle une seule fois ?**  
 > Les modèles (surtout LightGCN avec ses embeddings et sa matrice d'adjacence) peuvent être gourmands en mémoire. Si on les recharge à chaque requête, l'API deviendrait lente. Le `ModelService` est une instance globale créée au démarrage de l'application. Toutes les requêtes partagent cette même instance, donc les modèles restent en RAM et les calculs sont instantanés.
@@ -71,9 +71,9 @@
 - Pour chaque requête, il appelle les bons modèles, convertit les résultats en format JSON avec titre/genres du film, et renvoie la réponse au frontend.
 
 **Endpoints clés :**
-- `GET /api/v1/users` — Liste des utilisateurs connus
-- `GET /api/v1/recommendations/{user_id}?top_n=5` — Recommandations côte à côte (LightGCN, SVD, Item-Item)
-- `GET /` — Healthcheck
+- `GET /api/v1/users` - Liste des utilisateurs connus
+- `GET /api/v1/recommendations/{user_id}?top_n=5` - Recommandations côte à côte (LightGCN, SVD, Item-Item)
+- `GET /` - Healthcheck
 
 ---
 
@@ -103,19 +103,19 @@ Puis ouvrir :
 ### Option B : Installation locale (sans Docker)
 
 ```bash
-# 1. Backend — installer les dépendances Python
+# 1. Backend - installer les dépendances Python
 python -m venv venv
 .\venv\Scripts\activate  # Windows
 # source venv/bin/activate  # macOS/Linux
 pip install -r requirements.txt
 
-# 2. Générer les artefacts (modèles + données) — À FAIRE UNE SEULE FOIS
+# 2. Générer les artefacts (modèles + données) - À FAIRE UNE SEULE FOIS
 python -m scripts.run_pipeline --dataset 100k
 
 # 3. Lancer le backend
 uvicorn src.api.main:app --reload --port 8000
 
-# 4. Dans un autre terminal — lancer le frontend
+# 4. Dans un autre terminal - lancer le frontend
 cd frontend
 npm install
 npm run dev
@@ -136,7 +136,7 @@ recommender-gnn-vs-cf/
 ├── requirements-prod.txt           # Dépendances Python (production, sans outils de dev)
 │
 ├── data/
-│   ├── raw/                        # Datasets MovieLens bruts (100K / 1M) — .gitignore
+│   ├── raw/                        # Datasets MovieLens bruts (100K / 1M) - .gitignore
 │   └── processed/                  # Données nettoyées, splits temporels, graphes sauvegardés
 │       └── 100k/
 │           ├── train.csv           # Interactions d'entraînement
@@ -262,9 +262,9 @@ pytest tests/test_metrics.py -v
 ## 9. Résultats attendus (après entraînement)
 
 Les métriques sont sauvegardées dans `results/` :
-- `comparison_table.md` — Tableau comparatif LightGCN vs SVD vs Item-Item
-- `baselines_metrics.csv` — Métriques détaillées des baselines
-- `ablation_depth.png` — Graphique de l'étude d'ablation (performance vs profondeur)
+- `comparison_table.md` - Tableau comparatif LightGCN vs SVD vs Item-Item
+- `baselines_metrics.csv` - Métriques détaillées des baselines
+- `ablation_depth.png` - Graphique de l'étude d'ablation (performance vs profondeur)
 
 ---
 

@@ -1,11 +1,11 @@
-# Data Pipeline — Documentation (rôle Data Engineer)
+# Data Pipeline - Documentation (rôle Data Engineer)
 
 **Auteure :** Anne AGBOTA
 **Branche :** `feature/data-pipeline`
 **Dossier :** `src/data_pipeline/`
 
 Ce document explique ce que fait le pipeline de données, pourquoi chaque
-choix a été fait, et comment l'utiliser — pour que le ML Engineer et le Dev
+choix a été fait, et comment l'utiliser - pour que le ML Engineer et le Dev
 puissent s'appuyer dessus sans avoir à relire tout le code.
 
 ## En résumé, avant de rentrer dans les détails
@@ -52,7 +52,7 @@ MovieLens brut
 
 ---
 
-## 2. Étape 1 — Téléchargement, parsing, reindexation (`download.py`)
+## 2. Étape 1 - Téléchargement, parsing, reindexation (`download.py`)
 
 **L'idée en une phrase :** on part d'un fichier brut téléchargé sur
 Internet, et on en ressort un tableau propre, avec des identifiants
@@ -60,16 +60,16 @@ utilisables par n'importe quel modèle.
 
 Ce fichier fait 4 choses, dans l'ordre :
 
-1. **`download_zip()`** — télécharge l'archive `.zip` de MovieLens depuis
+1. **`download_zip()`** - télécharge l'archive `.zip` de MovieLens depuis
    le site officiel GroupLens, si elle n'est pas déjà sur le disque (sinon
    il ne re-télécharge pas, pour gagner du temps).
-2. **`extract_zip()`** — dézippe l'archive.
-3. **`parse_ratings()`** — lit le fichier de notes et le transforme en
+2. **`extract_zip()`** - dézippe l'archive.
+3. **`parse_ratings()`** - lit le fichier de notes et le transforme en
    tableau pandas avec 4 colonnes propres (`user_id`, `item_id`, `rating`,
    `timestamp`). Point important : MovieLens 100K et 1M n'ont pas le même
    format de fichier (le premier utilise des tabulations, le second des
    `::`), donc cette fonction gère les deux cas.
-4. **`reindex_ids()`** — c'est la plus importante à comprendre : MovieLens
+4. **`reindex_ids()`** - c'est la plus importante à comprendre : MovieLens
    donne des identifiants utilisateur/film qui ne sont pas forcément
    continus (par exemple user 1, 2, 5, 9...). Or, pour construire un
    graphe ensuite, PyTorch a besoin d'identifiants qui se suivent sans
@@ -89,12 +89,12 @@ pour 1M). `parse_ratings()` gère les deux cas pour que le reste du pipeline
 n'ait jamais à s'en soucier.
 
 **Vérifié en conditions réelles (MovieLens 100K) :**
-100 000 interactions, 943 utilisateurs, 1682 films — reindexés en `[0, 942]`
+100 000 interactions, 943 utilisateurs, 1682 films - reindexés en `[0, 942]`
 et `[0, 1681]` sans trou.
 
 ---
 
-## 3. Étape 2 — Split temporel Leave-One-Out (`temporal_split.py`)
+## 3. Étape 2 - Split temporel Leave-One-Out (`temporal_split.py`)
 
 **L'idée sur un exemple ultra simple :**
 Imagine un utilisateur qui a noté 5 films, dans cet ordre chronologique :
@@ -121,13 +121,13 @@ trop peu de données, et l'exclure complètement fausserait le graphe.
 Parce qu'en vrai, un système de recommandation prédit le futur à partir du
 passé. Si on mélangeait au hasard (comme le ferait un `train_test_split`
 classique), le modèle pourrait "apprendre" avec des films que
-l'utilisateur n'a vus qu'*après* — ce qui n'a aucun sens en pratique et
+l'utilisateur n'a vus qu'*après* - ce qui n'a aucun sens en pratique et
 fausserait complètement l'évaluation.
 
 **Pourquoi un split temporel et pas un split aléatoire, vu autrement :**
 Un système de recommandation prédit le futur à partir du passé. Un split
 aléatoire classique (ex: `train_test_split` de scikit-learn) pourrait
-laisser un film "futur" dans le train et un film "passé" dans le test —
+laisser un film "futur" dans le train et un film "passé" dans le test -
 ce qui n'a aucun sens en usage réel et fausse complètement l'évaluation
 (le modèle semblerait meilleur qu'il ne l'est vraiment).
 
@@ -147,7 +147,7 @@ Vérification anti-leakage : **OK**.
 
 ---
 
-## 4. Étape 3 — Graphe biparti Utilisateur-Item (`graph_builder.py`)
+## 4. Étape 3 - Graphe biparti Utilisateur-Item (`graph_builder.py`)
 
 **L'idée sur un exemple ultra simple :**
 Imagine 3 utilisateurs (U1, U2, U3) et 2 films (F1, F2) :
@@ -158,13 +158,13 @@ Imagine 3 utilisateurs (U1, U2, U3) et 2 films (F1, F2) :
 Le graphe biparti, c'est juste ça : des points ("nœuds") pour chaque
 utilisateur et chaque film, reliés par un trait ("arête") à chaque fois
 qu'il y a eu une note. Deux films ne sont jamais reliés directement entre
-eux, ni deux utilisateurs — seulement utilisateur ↔ film.
+eux, ni deux utilisateurs - seulement utilisateur ↔ film.
 
 **Pourquoi LightGCN a besoin de ça, concrètement ?**
 L'idée derrière le GNN, c'est que "les goûts se propagent à travers le
 graphe" : si U1 et U2 ont tous les deux aimé F1, et que U1 a aussi aimé F2,
-alors F2 devient une bonne suggestion pour U2 — même si U2 n'a jamais vu
-F2 — parce qu'ils sont "proches" dans le graphe. C'est cette propagation
+alors F2 devient une bonne suggestion pour U2 - même si U2 n'a jamais vu
+F2 - parce qu'ils sont "proches" dans le graphe. C'est cette propagation
 que les couches de convolution de LightGCN calculent.
 
 **Ce que le code fait, techniquement :**
@@ -197,7 +197,7 @@ inversement) à chaque passe de message-passing.
 
 **Sortie :** `data/processed/<dataset>/bipartite_graph.npz`
 
-**Pour le ML Engineer — comment charger ce graphe :**
+**Pour le ML Engineer - comment charger ce graphe :**
 ```python
 from src.data_pipeline.graph_builder import load_graph
 graph = load_graph("data/processed/100k/bipartite_graph.npz")
@@ -207,14 +207,14 @@ graph = load_graph("data/processed/100k/bipartite_graph.npz")
 
 ---
 
-## 5. Étape 4 — Traçage MLflow (`mlflow_tracking.py`)
+## 5. Étape 4 - Traçage MLflow (`mlflow_tracking.py`)
 
 **L'idée en une phrase :** MLflow, c'est un carnet de bord automatique.
 Chaque fois qu'on relance le pipeline (peut-être avec un
 `min_interactions` différent, ou sur le dataset 1M), MLflow enregistre
 quels paramètres on a utilisés, quelles statistiques on a obtenues, et
 garde une copie des fichiers produits. Ça permet, des semaines après, de
-répondre à "avec quels réglages exacts a-t-on obtenu ce graphe précis ?" —
+répondre à "avec quels réglages exacts a-t-on obtenu ce graphe précis ?" -
 exactement ce qu'un jury strict peut vérifier.
 
 **Ce que ça fait, techniquement :**
@@ -229,10 +229,10 @@ Le professeur exige MLflow sur l'ensemble du projet. Les choix faits ici
 (seuil `min_interactions`, stratégie de split, version du dataset)
 influencent directement les résultats finaux de comparaison GNN vs CF. Les
 tracer permet de répondre précisément à "avec quelles données exactes ce
-modèle a-t-il été entraîné ?" — un point que le jury peut demander.
+modèle a-t-il été entraîné ?" - un point que le jury peut demander.
 
 **Backend choisi : SQLite (`mlflow.db`)**, pas le simple dossier `mlruns/`
-en fichiers plats — c'est le backend recommandé par les versions récentes
+en fichiers plats - c'est le backend recommandé par les versions récentes
 de MLflow (le backend fichier pur est en maintenance limitée).
 
 ⚠️ **`mlflow.db` et `mlruns/` ne sont PAS poussés sur GitHub** (voir
@@ -291,12 +291,12 @@ python -m pip install -r requirements.txt
 ## 7. Ce qui n'est PAS encore fait (pistes pour la suite)
 
 - Script unique `pipeline.py` regroupant les 4 étapes en une seule commande
-  (`python -m src.data_pipeline.pipeline --dataset 100k`) — pratique mais
+  (`python -m src.data_pipeline.pipeline --dataset 100k`) - pratique mais
   pas indispensable, chaque brique fonctionne déjà indépendamment.
 - Exécution complète sur **MovieLens 1M** (fait pour l'instant sur 100K
   uniquement, pour itérer rapidement).
 - Fonctions de conversion du graphe générique vers `torch_geometric.data.Data`
-  et `dgl.graph()` — à ajouter dans `graph_builder.py` une fois que le ML
+  et `dgl.graph()` - à ajouter dans `graph_builder.py` une fois que le ML
   Engineer confirme quelle(s) librairie(s) il utilise.
 - Tests automatisés (`pytest`) validant la logique du split et du graphe.
 - Fichier `id_mappings.json` (correspondance ID MovieLens original ↔ ID

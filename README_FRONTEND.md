@@ -10,9 +10,9 @@ Ce document décrit l'architecture, le fonctionnement et le déploiement du fron
 
 Le frontend est une **Single Page Application (SPA)** React qui consomme l'API FastAPI du backend pour afficher, pour un utilisateur donné, les recommandations générées par trois modèles côte à côte :
 
-- **LightGCN (GNN)** — Réseau de neurones sur graphes
-- **SVD (Matrice)** — Factorisation de matrice
-- **Item-Item CF (Similarité)** — Filtrage collaboratif item-based
+- **LightGCN (GNN)** - Réseau de neurones sur graphes
+- **SVD (Matrice)** - Factorisation de matrice
+- **Item-Item CF (Similarité)** - Filtrage collaboratif item-based
 
 L'interface permet de :
 - Sélectionner un utilisateur parmi une liste prédéfinie
@@ -173,7 +173,7 @@ App
 ### Point d'entrée API
 
 ```javascript
-// src/App.jsx — Vite n'expose que les variables prefixees VITE_ (cf. docker-compose).
+// src/App.jsx - Vite n'expose que les variables prefixees VITE_ (cf. docker-compose).
 const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 ```
 

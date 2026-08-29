@@ -159,7 +159,7 @@ def train_one_config(
 def save_lightgcn(model: LightGCN, user_id_map: dict, item_id_map: dict, out_dir=MODELS_DIR) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Checkpoint (state_dict + métadonnées) — model_service.py reconstitue
+    # Checkpoint (state_dict + métadonnées) - model_service.py reconstitue
     # le modèle en mémoire puis charge le state_dict (weights_only=True au load).
     checkpoint = {
         "state_dict": model.state_dict(),
